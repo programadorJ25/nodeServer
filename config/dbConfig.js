@@ -18,7 +18,7 @@ const sequelize = new Sequelize(
   "u684745967_golfClients",
   "golfClients1423",
   {
-    host: "localhost",
+    host: "154.49.241.182",
     dialect: "mysql",
   }
 );
