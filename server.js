@@ -24,12 +24,7 @@ server.on("connection", (ws) => {
       // Broadcast to all clients
       clients.forEach((client) => {
         if (client !== ws && client.readyState === WebSocket.OPEN) {
-          client.send(
-            JSON.stringify({
-              type: "broadcast",
-              content: parsedMessage.content,
-            })
-          );
+          client.send(JSON.stringify(parsedMessage));
         }
       });
 
@@ -37,7 +32,7 @@ server.on("connection", (ws) => {
       ws.send(
         JSON.stringify({
           type: "echo",
-          content: parsedMessage.content,
+          content: parsedMessage,
         })
       );
     } catch (error) {
