@@ -2,6 +2,7 @@ const WebSocket = require("ws");
 const express = require("express");
 const sequelize = require("./config/dbConfig");
 const Message = require("./models/message.model");
+const moment = require("moment-timezone");
 
 const server = new WebSocket.Server({ port: 8080 });
 const app = express();
@@ -15,8 +16,8 @@ server.on("connection", (ws) => {
     try {
       const parsedMessage = JSON.parse(message);
 
-      if (parsedMessage.type === "auth") {
-        // Manejo de autenticación, si el mensaje contiene el PLC ID para asociar
+      if (parsedMessage.type === "auth" && parsedMessage.plcId) {
+        // Manejo de autenticación
         const plcId = parsedMessage.plcId;
         clients.set(plcId, ws);
         ws.plcId = plcId; // Guardar el ID del PLC en el WebSocket para referencia futura
@@ -28,12 +29,18 @@ server.on("connection", (ws) => {
           content: "Hello, this is the welcome message",
         };
         ws.send(JSON.stringify(welcomeMessage));
-      } else if (parsedMessage.plcId) {
-        // Procesar otros mensajes, asegurando que tengan un PLC ID
+      } else if (
+        ws.plcId &&
+        parsedMessage.plcId === ws.plcId &&
+        parsedMessage.D1 &&
+        parsedMessage.Value &&
+        parsedMessage.Dispositivo
+      ) {
+        // Procesar mensajes normales
         handleMessage(ws, parsedMessage);
       } else {
-        // Si no tiene plcId y no es un mensaje de autenticación, rechazarlo
-        throw new Error("Message missing plcId");
+        // Si el mensaje no tiene la estructura esperada, rechazarlo
+        throw new Error("Invalid message structure or unauthenticated client");
       }
     } catch (error) {
       console.error("Invalid JSON received or other error:", message, error);
@@ -97,7 +104,20 @@ app.get("/storedMessages/:plcId", async (req, res) => {
   try {
     const plcId = req.params.plcId;
     const messages = await Message.findAll({ where: { plcId } });
-    res.json(messages);
+
+    // Convertir los timestamps a la zona horaria local
+    const timezone = "America/Mexico_City";
+    const messagesWithLocalTime = messages.map((msg) => {
+      const localTimestamp = moment.utc(msg.timestamp).tz(timezone).format(); // Convertir desde UTC a zona horaria local
+      return {
+        ...msg.toJSON(),
+        localTimestamp,
+      };
+    });
+
+    console.log("Hora:", localTimestamp);
+
+    res.json(messagesWithLocalTime);
   } catch (error) {
     console.error("Error fetching stored messages:", error);
     res.status(500).json({ error: "Error fetching stored messages" });
@@ -115,8 +135,8 @@ sequelize
   });
 
 // Iniciar servidor HTTP
-const httpServer = app.listen(3000, () => {
-  console.log("HTTP server is listening on port 3000");
+const httpServer = app.listen(1880, () => {
+  console.log("HTTP server is listening on port 1880");
 });
 
 console.log("WebSocket server is listening on port 8080");
