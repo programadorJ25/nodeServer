@@ -2,6 +2,7 @@ const WebSocket = require("ws");
 const express = require("express");
 const sequelize = require("./config/dbConfig");
 const Message = require("./models/message.model");
+const AdditionalMessage = require("./models/additionalMessage.model"); // Importar el nuevo modelo
 const moment = require("moment-timezone");
 
 const server = new WebSocket.Server({ port: 8080 });
@@ -32,12 +33,11 @@ server.on("connection", (ws) => {
       } else if (
         ws.plcId &&
         parsedMessage.plcId === ws.plcId &&
-        parsedMessage.D1 &&
-        parsedMessage.Value &&
-        parsedMessage.Dispositivo
+        Array.isArray(parsedMessage.firstThree) &&
+        Array.isArray(parsedMessage.additionalChunks)
       ) {
-        // Procesar mensajes normales
-        handleMessage(ws, parsedMessage);
+        // Procesar mensajes con el nuevo formato
+        await handleNewMessageFormat(ws, parsedMessage);
       } else {
         // Si el mensaje no tiene la estructura esperada, rechazarlo
         throw new Error("Invalid message structure or unauthenticated client");
@@ -66,7 +66,7 @@ server.on("connection", (ws) => {
   });
 });
 
-async function handleMessage(ws, parsedMessage) {
+async function handleNewMessageFormat(ws, parsedMessage) {
   if (!ws.plcId) {
     console.error("Client is not authenticated");
     const errorMessage = {
@@ -77,11 +77,19 @@ async function handleMessage(ws, parsedMessage) {
     return;
   }
 
-  // Almacenar el mensaje en la base de datos con el ID del PLC
+  // Almacenar las primeras tres variables en la base de datos con el ID del PLC
   await Message.create({
     plcId: ws.plcId,
-    content: JSON.stringify(parsedMessage),
+    content: JSON.stringify(parsedMessage.firstThree),
   });
+
+  // Almacenar los chunks adicionales en la base de datos con el ID del PLC
+  for (const chunk of parsedMessage.additionalChunks) {
+    await AdditionalMessage.create({
+      plcId: ws.plcId,
+      chunk: JSON.stringify(chunk),
+    });
+  }
 
   // Broadcast solo a clientes asociados con el mismo PLC ID
   clients.forEach((client, plcId) => {
@@ -114,8 +122,6 @@ app.get("/storedMessages/:plcId", async (req, res) => {
         localTimestamp,
       };
     });
-
-    console.log("Hora:", localTimestamp);
 
     res.json(messagesWithLocalTime);
   } catch (error) {

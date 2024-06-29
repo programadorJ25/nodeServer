@@ -1,14 +1,14 @@
-// message.model.js
+// additionalMessage.model.js
 
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/dbConfig"); // Importa la instancia de Sequelize
 
-const Message = sequelize.define("Message", {
+const AdditionalMessage = sequelize.define("PumpLead", {
   plcId: {
     type: DataTypes.STRING,
     allowNull: false,
   },
-  content: {
+  chunk: {
     type: DataTypes.JSON,
     allowNull: false,
   },
@@ -18,4 +18,4 @@ const Message = sequelize.define("Message", {
   },
 });
 
-module.exports = Message;
+module.exports = AdditionalMessage;
